@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SnackWatch+ Admin</title>
+<link rel="stylesheet" href="/static/style.css" />
+<style>
+  body { background: #f0f4f8; }
+  h1 { margin-bottom: 0; }
+  .container { max-width: 960px; margin: 20px auto; background: white; padding: 20px; border-radius: 8px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+  }
+  th, td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+  }
+  th { background-color: #007bff; color: white; }
+  tr:hover { background-color: #f1f9ff; }
+  button {
+    padding: 6px 12px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button.complete-btn[disabled] {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+  .topbar button {
+    background-color: #007bff;
+  }
+  a {
+    text-decoration: none;
+    color: #007bff;
+    font-weight: bold;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  .delivered {
+    color: green;
+    font-weight: bold;
+  }
+  .not-delivered {
+    color: red;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <h1>SnackWatch+ Admin Panel</h1>
+    <div>
+      <button id="toggleStoreBtn">Toggle Store Open/Close</button>
+      <a href="/admin/stock" style="margin-left: 15px;">Manage Stock</a>
+      <a href="/logout" style="margin-left: 15px; color: red;">Logout</a>
+    </div>
+  </div>
+
+  <h2>Orders</h2>
+  <table id="ordersTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Item</th>
+        <th>Name</th>
+        <th>Pickup Method</th>
+        <th>Time</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="7" style="text-align:center;">Loading orders...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+async function fetchOrders() {
+  try {
+    const res = await fetch('/orders', { credentials: 'same-origin' });
+    if (res.status === 403) {
+      alert("Not authorized. Please login again.");
+      window.location.href = "/login";
+      return;
+    }
+    const orders = await res.json();
+    const tbody = document.querySelector("#ordersTable tbody");
+    tbody.innerHTML = "";
+
+    if (orders.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">No orders yet.</td></tr>`;
+      return;
+    }
+
+    orders.forEach((order, i) => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${i+1}</td>
+          <td>${order.item}</td>
+          <td>${order.name}</td>
+          <td>${order.pickup_method}</td>
+          <td>${order.time}</td>
+          <td class="${order.delivered ? 'delivered' : 'not-delivered'}">${order.delivered ? 'Delivered' : 'Pending'}</td>
+          <td>
+            <button class="complete-btn" ${order.delivered ? 'disabled' : ''} data-index="${i}">Complete</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    document.querySelectorAll('.complete-btn').forEach(btn => {
+      btn.onclick = async () => {
+        const index = btn.getAttribute('data-index');
+        btn.disabled = true;
+        const res = await fetch(`/complete/${index}`, { method: 'POST', credentials: 'same-origin' });
+        if (res.ok) {
+          fetchOrders(); // refresh after completing
+        } else {
+          alert('Failed to complete order.');
+          btn.disabled = false;
+        }
+      };
+    });
+
+  } catch (e) {
+    console.error(e);
+    alert('Failed to load orders.');
+  }
+}
+
+document.getElementById('toggleStoreBtn').onclick = async () => {
+  const res = await fetch('/toggle_store', { method: 'POST', credentials: 'same-origin' });
+  if (res.ok) {
+    const data = await res.json();
+    alert('Store is now ' + (data.store_open ? 'OPEN' : 'CLOSED'));
+  } else {
+    alert('Failed to toggle store status.');
+  }
+};
+
+window.onload = () => {
+  fetchOrders();
+};
+</script>
+</body>
+</html>

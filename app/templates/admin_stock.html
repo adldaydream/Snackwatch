@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin - Edit Stock - SnackWatch+</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Adjust Snack Stock</h1>
+    <form method="POST">
+      <table>
+        <tr><th>Snack</th><th>Current Stock</th><th>New Stock</th></tr>
+        {% for snack, details in stock.items() %}
+        <tr>
+          <td>{{ snack }}</td>
+          <td>{{ details.stock }}</td>
+          <td><input type="number" name="{{ snack }}" min="0" value="{{ details.stock }}" required /></td>
+        </tr>
+        {% endfor %}
+      </table>
+      <button type="submit">Save Stock</button>
+    </form>
+    <br/>
+    <a href="/admin">Back to Admin Dashboard</a>
+  </div>
+</body>
+</html>

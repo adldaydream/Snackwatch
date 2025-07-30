@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SnackWatch+</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div class="container">
+  <h1>SnackWatch+</h1>
+  <h2>Available Snacks</h2>
+  <div id="snackList" class="card-grid"></div>
+
+  <h2>Your Cart</h2>
+  <div id="cartSummary"><p>No items in cart.</p></div>
+  <button id="checkoutBtn" disabled>Checkout</button>
+
+  <div id="checkoutModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Checkout</h3>
+      <div id="checkoutItems"></div>
+      <label for="nameInput">Your Name or Table:</label>
+      <input type="text" id="nameInput" />
+      <label for="pickupMethod">Pickup Method:</label>
+      <select id="pickupMethod">
+        <option value="Pickup">Pickup (I will come get it)</option>
+        <option value="Delivery">Delivery (Bring it to me)</option>
+      </select>
+      <div style="margin-top: 15px;">
+        <button onclick="submitCheckout()">Place Order ($0)</button>
+        <button onclick="closeCheckout()" style="margin-left: 10px; background-color: #ccc; color: black;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="confirmation" class="hidden">Order placed! Thank you.</div>
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>

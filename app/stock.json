@@ -1,0 +1,33 @@
+{
+  "Chips": {
+    "stock": 18,
+    "allergies": [
+      "Gluten"
+    ]
+  },
+  "Chocolate Bar": {
+    "stock": 19,
+    "allergies": [
+      "Milk",
+      "Soy"
+    ]
+  },
+  "Popcorn": {
+    "stock": 20,
+    "allergies": []
+  },
+  "Soda": {
+    "stock": 20,
+    "allergies": []
+  },
+  "Cookies": {
+    "stock": 20,
+    "allergies": [
+      "Eggs"
+    ]
+  },
+  "Fruit Juice": {
+    "stock": 0,
+    "allergies": []
+  }
+}
