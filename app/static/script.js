@@ -88,35 +88,41 @@ function submitCheckout() {
     return;
   }
 
-  const snackEntries = Object.entries(cart);
-  if (snackEntries.length === 0) return;
+  if (Object.keys(cart).length === 0) {
+    alert("Your cart is empty.");
+    return;
+  }
 
-  let promises = snackEntries.flatMap(([snack, qty]) =>
-    Array(qty).fill().map(() =>
-      fetch('/order', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: `item=${encodeURIComponent(snack)}&name=${encodeURIComponent(name)}&pickup_method=${encodeURIComponent(pickupMethod)}`
-      }).then(res => {
-        if (!res.ok) {
-          return res.json().then(data => Promise.reject(new Error(data.message || "Order failed")));
-        }
-      })
-    )
-  );
-
-  Promise.all(promises)
-    .then(() => {
-      closeCheckout();
-      document.getElementById('confirmation').classList.remove('hidden');
-      setTimeout(() => {
-        document.getElementById('confirmation').classList.add('hidden');
-        loadStock();
-      }, 3000);
-      for (const key in cart) delete cart[key];
-      renderCart();
+  // Send entire cart in one request
+  fetch('/order', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      cart: cart,
+      name: name,
+      pickup_method: pickupMethod
     })
-    .catch(err => alert(err.message));
+  })
+  .then(res => {
+    if (!res.ok) {
+      return res.json().then(data => Promise.reject(new Error(data.message || "Order failed")));
+    }
+    return res.json();
+  })
+  .then(() => {
+    closeCheckout();
+    document.getElementById('confirmation').classList.remove('hidden');
+    setTimeout(() => {
+      document.getElementById('confirmation').classList.add('hidden');
+      loadStock();
+    }, 3000);
+    // Clear cart
+    for (const key in cart) delete cart[key];
+    renderCart();
+  })
+  .catch(err => {
+    alert("Error placing order: " + err.message);
+  });
 }
 
 document.getElementById('checkoutBtn').onclick = openCheckout;

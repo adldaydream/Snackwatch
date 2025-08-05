@@ -2,15 +2,39 @@ from flask import Flask, render_template, request, jsonify, redirect, session
 from datetime import datetime
 import json
 import os
+import re
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "snackwatch_secret_key_123"  # Change for production
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'default_secret_key_change_this')
 
 BASE_DIR = os.path.dirname(__file__)
 STOCK_FILE = os.path.join(BASE_DIR, 'stock.json')
 ORDERS_FILE = os.path.join(BASE_DIR, 'orders.json')
 
 STORE_OPEN = True  # In-memory store open flag
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
+
+# --- Utility ---
+
+def sanitize_input(text, max_length=100):
+    """Sanitize user input to prevent XSS and limit length"""
+    if not text:
+        return ""
+    # Remove HTML tags and limit length
+    text = re.sub('<[^<]+?>', '', str(text))
+    return text.strip()[:max_length]
+
+def validate_quantity(quantity):
+    """Validate quantity is a positive integer"""
+    try:
+        qty = int(quantity)
+        return max(0, min(qty, 99))  # Cap at 99 items
+    except (ValueError, TypeError):
+        return 0
 
 # --- Utility ---
 
@@ -57,29 +81,93 @@ def order():
     if not STORE_OPEN:
         return jsonify(success=False, message="Store is closed."), 403
 
-    item = request.form.get('item')
-    name = request.form.get('name')
-    pickup_method = request.form.get('pickup_method', 'Pickup')
+    # Handle both single item and multiple items (cart) orders
+    data = request.get_json() if request.is_json else request.form
+    
+    name = sanitize_input(data.get('name'), 50)
+    pickup_method = sanitize_input(data.get('pickup_method', 'Pickup'), 20)
+    
+    if not name or len(name.strip()) < 1:
+        return jsonify(success=False, message="Please provide a valid name"), 400
 
-    if not item or not name:
-        return jsonify(success=False, message="Missing item or name"), 400
+    # Validate pickup method
+    if pickup_method not in ['Pickup', 'Delivery']:
+        pickup_method = 'Pickup'
 
-    stock = load_stock()
-    if item not in stock or stock[item]['stock'] <= 0:
-        return jsonify(success=False, message="Item out of stock"), 400
+    # Handle multiple items from cart
+    if 'cart' in data:
+        cart = data.get('cart')
+        if not cart or not isinstance(cart, dict):
+            return jsonify(success=False, message="Invalid cart data"), 400
+        
+        # Validate cart items and quantities
+        validated_cart = {}
+        stock = load_stock()
+        
+        for item, quantity in cart.items():
+            item = sanitize_input(item, 50)
+            quantity = validate_quantity(quantity)
+            
+            if not item or quantity <= 0:
+                continue
+                
+            if item not in stock:
+                return jsonify(success=False, message=f"Item '{item}' not found"), 400
+                
+            if stock[item]['stock'] < quantity:
+                return jsonify(success=False, message=f"Insufficient stock for {item}"), 400
+                
+            validated_cart[item] = quantity
+        
+        if not validated_cart:
+            return jsonify(success=False, message="No valid items in cart"), 400
+        
+        # Reserve stock for all items
+        for item, quantity in validated_cart.items():
+            stock[item]['stock'] -= quantity
+        save_stock(stock)
 
-    stock[item]['stock'] -= 0
-    save_stock(stock)
+        # Create orders for each item
+        orders = load_orders()
+        order_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        for item, quantity in validated_cart.items():
+            for _ in range(quantity):
+                orders.append({
+                    "item": item,
+                    "name": name,
+                    "pickup_method": pickup_method,
+                    "time": order_time,
+                    "delivered": False
+                })
+        save_orders(orders)
+        
+    else:
+        # Handle single item (legacy support)
+        item = sanitize_input(data.get('item'), 50)
+        if not item:
+            return jsonify(success=False, message="Missing item"), 400
 
-    orders = load_orders()
-    orders.append({
-        "item": item,
-        "name": name,
-        "pickup_method": pickup_method,
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "delivered": False
-    })
-    save_orders(orders)
+        stock = load_stock()
+        if item not in stock:
+            return jsonify(success=False, message="Item not found"), 400
+            
+        if stock[item]['stock'] <= 0:
+            return jsonify(success=False, message="Item out of stock"), 400
+
+        # Reserve stock immediately when order is placed
+        stock[item]['stock'] -= 1
+        save_stock(stock)
+
+        orders = load_orders()
+        orders.append({
+            "item": item,
+            "name": name,
+            "pickup_method": pickup_method,
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "delivered": False
+        })
+        save_orders(orders)
 
     return jsonify(success=True)
 
@@ -104,18 +192,7 @@ def complete_order(index):
     if orders[index]['delivered']:
         return jsonify(success=False, message="Order already delivered"), 400
 
-    # Get item first
-    item = orders[index]['item']
-
-    # Decrement stock first
-    stock = load_stock()
-    if item in stock and stock[item]['stock'] > 0:
-        stock[item]['stock'] -= 1
-        save_stock(stock)
-    else:
-        return jsonify(success=False, message="Stock not available to decrement"), 400
-
-    # Mark delivered and save orders
+    # Stock was already decremented when order was placed, just mark as delivered
     orders[index]['delivered'] = True
     save_orders(orders)
 
@@ -151,7 +228,7 @@ def admin_stock():
 def login():
     if request.method == 'POST':
         pin = request.form.get('pin')
-        if pin == '5024':
+        if pin == ADMIN_PASSWORD:
             session['admin'] = True
             return redirect('/admin')
         else:
